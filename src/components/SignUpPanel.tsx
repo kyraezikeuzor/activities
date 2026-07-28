@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { Loader2, UserPlus, Users } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { Check, Loader2, UserPlus, Users } from "lucide-react";
 
 const APPLY_URL = "https://form.fillout.com/t/2VfsyEfiduus";
 
@@ -13,6 +14,7 @@ type MatchedPerson = {
 };
 
 type SignUpPanelProps = {
+  activityId: string;
   slotsFilled: number;
   slotsTotal: number;
   isFull: boolean;
@@ -22,19 +24,136 @@ type LookupState =
   | { status: "idle" }
   | { status: "loading" }
   | { status: "found"; person: MatchedPerson }
+  | { status: "signing_up"; person: MatchedPerson }
+  | { status: "signed_up"; person: MatchedPerson }
   | { status: "not_found" }
   | { status: "error"; message: string };
 
 export function SignUpPanel({
-  slotsFilled,
+  activityId,
+  slotsFilled: initialSlotsFilled,
   slotsTotal,
-  isFull,
+  isFull: initialIsFull,
 }: SignUpPanelProps) {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [lookup, setLookup] = useState<LookupState>({ status: "idle" });
+  const [slotsFilled, setSlotsFilled] = useState(initialSlotsFilled);
+
+  // Keep spots in sync when the server re-renders with a fresh Airtable rollup
+  useEffect(() => {
+    setSlotsFilled(initialSlotsFilled);
+  }, [initialSlotsFilled]);
+
+  const isFull =
+    initialIsFull || (slotsTotal > 0 && slotsFilled >= slotsTotal);
+
+  async function lookupPerson(trimmed: string) {
+    setLookup({ status: "loading" });
+    console.log("[SignUpPanel] looking up person", { email: trimmed });
+
+    const res = await fetch("/api/lookup-person", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: trimmed }),
+    });
+    const data = (await res.json()) as {
+      found?: boolean;
+      person?: MatchedPerson | null;
+      error?: string;
+    };
+
+    console.log("[SignUpPanel] lookup response", { status: res.status, data });
+
+    if (!res.ok) {
+      setLookup({
+        status: "error",
+        message: data.error || "Lookup failed.",
+      });
+      return;
+    }
+
+    if (data.found && data.person) {
+      setLookup({ status: "found", person: data.person });
+    } else {
+      setLookup({ status: "not_found" });
+    }
+  }
+
+  async function confirmSignUp(person: MatchedPerson) {
+    setLookup({ status: "signing_up", person });
+
+    console.log("[SignUpPanel] confirming sign-up submit", {
+      activityId,
+      personId: person.id,
+      email: person.email,
+    });
+
+    try {
+      const res = await fetch("/api/activities/sign-up", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          activityId,
+          personId: person.id,
+          email: person.email,
+        }),
+      });
+
+      const data = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        activity?: {
+          id: string;
+          slotsFilled: number;
+          slotsTotal: number;
+          signUpIds: string[];
+        };
+      };
+
+      console.log("[SignUpPanel] sign-up API response", {
+        status: res.status,
+        ok: res.ok,
+        data,
+      });
+
+      if (!res.ok) {
+        console.error("[SignUpPanel] sign-up FAILED", data);
+        setLookup({
+          status: "error",
+          message: data.error || "Sign up failed.",
+        });
+        return;
+      }
+
+      if (typeof data.activity?.slotsFilled === "number") {
+        console.log(
+          "[SignUpPanel] updating slotsFilled from Airtable rollup",
+          data.activity.slotsFilled
+        );
+        setSlotsFilled(data.activity.slotsFilled);
+      }
+
+      setLookup({ status: "signed_up", person });
+      router.refresh();
+    } catch (err) {
+      console.error("[SignUpPanel] sign-up threw", err);
+      setLookup({
+        status: "error",
+        message:
+          err instanceof Error ? err.message : "Something went wrong. Try again.",
+      });
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    // Phase 2: profile already found → write to Airtable Linked Sign Ups
+    if (lookup.status === "found") {
+      await confirmSignUp(lookup.person);
+      return;
+    }
 
     const trimmed = email.trim();
     if (!trimmed || !trimmed.includes("@")) {
@@ -49,34 +168,10 @@ export function SignUpPanel({
       return;
     }
 
-    setLookup({ status: "loading" });
-
     try {
-      const res = await fetch("/api/lookup-person", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: trimmed }),
-      });
-      const data = (await res.json()) as {
-        found?: boolean;
-        person?: MatchedPerson | null;
-        error?: string;
-      };
-
-      if (!res.ok) {
-        setLookup({
-          status: "error",
-          message: data.error || "Lookup failed.",
-        });
-        return;
-      }
-
-      if (data.found && data.person) {
-        setLookup({ status: "found", person: data.person });
-      } else {
-        setLookup({ status: "not_found" });
-      }
-    } catch {
+      await lookupPerson(trimmed);
+    } catch (err) {
+      console.error("[SignUpPanel] lookup threw", err);
       setLookup({
         status: "error",
         message: "Something went wrong. Try again.",
@@ -85,11 +180,23 @@ export function SignUpPanel({
   }
 
   const inputHighlight =
-    lookup.status === "found"
+    lookup.status === "found" ||
+    lookup.status === "signing_up" ||
+    lookup.status === "signed_up"
       ? "border-primary ring-2 ring-primary/20"
-      : lookup.status === "error" || lookup.status === "not_found"
-        ? "border-border"
-        : "border-border";
+      : "border-border";
+
+  const busy =
+    lookup.status === "loading" || lookup.status === "signing_up";
+
+  const buttonLabel =
+    lookup.status === "signed_up"
+      ? "Signed Up"
+      : lookup.status === "found"
+        ? "Confirm Sign Up"
+        : isFull
+          ? "Full"
+          : "Sign Up";
 
   return (
     <aside className="flex flex-col gap-5 lg:pl-8">
@@ -134,7 +241,12 @@ export function SignUpPanel({
               type="email"
               placeholder="you@example.com"
               value={email}
-              disabled={isFull || lookup.status === "loading"}
+              disabled={
+                isFull ||
+                busy ||
+                lookup.status === "signed_up" ||
+                lookup.status === "found"
+              }
               onChange={(e) => {
                 setEmail(e.target.value);
                 if (lookup.status !== "idle" && lookup.status !== "loading") {
@@ -154,7 +266,16 @@ export function SignUpPanel({
             </div>
           ) : null}
 
-          {lookup.status === "found" ? (
+          {lookup.status === "signing_up" ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              Adding you to this activity…
+            </div>
+          ) : null}
+
+          {lookup.status === "found" ||
+          lookup.status === "signing_up" ||
+          lookup.status === "signed_up" ? (
             <div className="flex items-center gap-3 rounded-xl border border-border bg-white p-3 shadow-sm">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sunrise-100 text-sm font-bold text-primary">
                 {lookup.person.initials}
@@ -195,15 +316,22 @@ export function SignUpPanel({
 
           <button
             type="submit"
-            disabled={isFull || lookup.status === "loading"}
+            disabled={
+              isFull ||
+              busy ||
+              lookup.status === "signed_up" ||
+              lookup.status === "not_found"
+            }
             className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-primary px-4 text-sm font-bold tracking-normal text-primary-foreground shadow-sm transition-colors hover:bg-sunrise-600 disabled:pointer-events-none disabled:opacity-50"
           >
-            {lookup.status === "loading" ? (
+            {busy ? (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            ) : lookup.status === "signed_up" ? (
+              <Check className="h-4 w-4" aria-hidden />
             ) : (
               <UserPlus className="h-4 w-4" aria-hidden />
             )}
-            {isFull ? "Full" : "Sign Up"}
+            {buttonLabel}
           </button>
         </form>
       </div>

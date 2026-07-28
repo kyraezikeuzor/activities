@@ -122,3 +122,17 @@ export async function getActivityBySlug(
   }
   return activity;
 }
+
+/** Replace one activity in the in-memory cache after a successful mutation. */
+export function upsertActivityInCache(activity: Activity): void {
+  const key = activity.slug.trim().toLowerCase();
+  activitiesBySlug.set(key, activity);
+  activitiesById.set(activity.id, activity);
+  console.log("[activitiesCache] upserted activity in cache", {
+    id: activity.id,
+    slug: key,
+    slotsFilled: activity.slotsFilled,
+    signUpIds: activity.signUpIds,
+  });
+}
+

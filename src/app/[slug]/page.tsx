@@ -196,6 +196,7 @@ export default async function ActivityDetailPage({ params }: PageProps) {
             {/* Right: sign ups */}
             <div className="p-6 sm:p-8">
               <SignUpPanel
+                activityId={activity.id}
                 slotsFilled={activity.slotsFilled}
                 slotsTotal={activity.slotsTotal}
                 isFull={isFull}
