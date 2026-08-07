@@ -82,6 +82,7 @@ function slugify(value: string): string {
 export interface ActivityFields {
   "Activity Name"?: string;
   Track?: string;
+  Category?: string;
   Type?: string;
   Description?: string;
   Location?: string;
@@ -97,6 +98,7 @@ export interface ActivityFields {
   Instructions?: string;
   "Activity ID"?: number;
   "Linked Sign Ups"?: string[];
+  "Submission Format"?: string;
 }
 
 /**
@@ -108,7 +110,10 @@ export interface Activity {
   createdTime: string;
   fields: ActivityFields;
   title: string;
+  /** Track for board columns (Education, Fundraising, …). */
   category: string | null;
+  /** Airtable Category (e.g. Coloring Pages) — card metadata. */
+  activityCategory: string | null;
   type: string | null;
   description: string | null;
   location: string | null;
@@ -122,6 +127,8 @@ export interface Activity {
   hours: number;
   slug: string;
   signUpIds: string[];
+  /** Airtable "Submission Format" — typically "text" or "attachment". */
+  submissionFormat: string | null;
 }
 
 /** Build public path slug: `title-slug-{airtableRecordId}`. */
@@ -167,6 +174,7 @@ export function mapActivityRecord(record: {
     fields: record.fields,
     title,
     category: record.fields.Track?.trim() || null,
+    activityCategory: record.fields.Category?.trim() || null,
     type: record.fields.Type?.trim() || null,
     description: record.fields.Description?.trim() || null,
     location: record.fields.Location?.trim() || null,
@@ -188,6 +196,7 @@ export function mapActivityRecord(record: {
         : 0,
     slug,
     signUpIds,
+    submissionFormat: record.fields["Submission Format"]?.trim() || null,
   };
 }
 
