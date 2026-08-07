@@ -416,3 +416,46 @@ export async function fetchAllPeople(): Promise<Person[]> {
   return records.map(mapPersonRecord);
 }
 
+/** Fetch a single People record by Airtable record id. */
+export async function fetchPersonById(id: string): Promise<Person | null> {
+  const { apiKey, baseId } = getConfig();
+  const url = `${AIRTABLE_API_URL}/${baseId}/${encodeURIComponent("People")}/${id}`;
+
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    cache: "no-store",
+  });
+
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Airtable People get failed (${res.status}): ${body}`);
+  }
+
+  const record = (await res.json()) as {
+    id: string;
+    createdTime: string;
+    fields: PersonFields;
+  };
+  return mapPersonRecord(record);
+}
+
+/** Fetch multiple People records by id in parallel (skips missing). */
+export async function fetchPeopleByIds(ids: string[]): Promise<Person[]> {
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (unique.length === 0) return [];
+
+  const results = await Promise.all(unique.map((id) => fetchPersonById(id)));
+  const byId = new Map(
+    results.filter((p): p is Person => p !== null).map((p) => [p.id, p])
+  );
+
+  // Preserve caller order; skip ids that 404'd
+  return ids
+    .map((id) => byId.get(id))
+    .filter((p): p is Person => p !== undefined);
+}
+

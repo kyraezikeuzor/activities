@@ -1,4 +1,8 @@
-import { fetchAllPeople, type Person } from "@/lib/airtable";
+import {
+  fetchAllPeople,
+  fetchPeopleByIds,
+  type Person,
+} from "@/lib/airtable";
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
@@ -11,8 +15,14 @@ let lastRefreshedAt: number | null = null;
 let refreshInFlight: Promise<number> | null = null;
 
 function isCacheStale(): boolean {
-  if (lastRefreshedAt === null || peopleById.size === 0) return true;
+  if (lastRefreshedAt === null || peopleByEmail.size === 0) return true;
   return Date.now() - lastRefreshedAt > CACHE_TTL_MS;
+}
+
+function rememberPerson(person: Person): void {
+  peopleById.set(person.id, person);
+  const email = person.email?.trim().toLowerCase();
+  if (email) peopleByEmail.set(email, person);
 }
 
 /**
@@ -33,10 +43,7 @@ export async function refreshPeopleCache(): Promise<number> {
     peopleByEmail.clear();
     peopleById.clear();
     for (const person of people) {
-      peopleById.set(person.id, person);
-      const email = person.email?.trim().toLowerCase();
-      if (!email) continue;
-      peopleByEmail.set(email, person);
+      rememberPerson(person);
     }
 
     lastRefreshedAt = Date.now();
@@ -84,13 +91,34 @@ export async function getPersonByEmail(
 
 /**
  * Resolve People by Airtable record IDs (e.g. Linked Sign Ups).
+ * Uses the in-memory id cache when warm; otherwise fetches only the
+ * requested records (not the full People table).
  * Preserves input order; skips missing IDs.
  */
 export async function getPeopleByIds(ids: string[]): Promise<Person[]> {
   if (ids.length === 0) return [];
 
-  if (isCacheStale()) {
-    await refreshPeopleCache();
+  const missing: string[] = [];
+  for (const id of ids) {
+    if (!peopleById.has(id)) missing.push(id);
+  }
+
+  if (missing.length === 0) {
+    console.log(
+      `[peopleCache] getPeopleByIds cache hit — ${ids.length} id(s)`
+    );
+  } else {
+    console.log(
+      `[peopleCache] getPeopleByIds fetching ${missing.length} missing id(s) (not full table)`
+    );
+    const started = Date.now();
+    const fetched = await fetchPeopleByIds(missing);
+    for (const person of fetched) {
+      rememberPerson(person);
+    }
+    console.log(
+      `[peopleCache] getPeopleByIds fetched ${fetched.length}/${missing.length} in ${Date.now() - started}ms`
+    );
   }
 
   const people: Person[] = [];

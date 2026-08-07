@@ -94,14 +94,15 @@ export async function getActivityBySlug(
   const key = slug.trim().toLowerCase();
   if (!key) return null;
 
+  const stats = getActivitiesCacheStats();
   if (isCacheStale()) {
     console.log(
-      `[activitiesCache] cache miss/stale for "${key}" — refreshing before lookup`
+      `[activitiesCache] MISS/stale for slug "${key}" — refreshing (ageMs=${stats.ageMs}, size=${stats.size})`
     );
     await refreshActivitiesCache();
   } else {
     console.log(
-      `[activitiesCache] cache hit path for "${key}" (no refresh needed)`
+      `[activitiesCache] HIT for slug lookup path "${key}" (ageMs=${stats.ageMs}, size=${stats.size})`
     );
   }
 
@@ -116,9 +117,9 @@ export async function getActivityBySlug(
   }
 
   if (activity) {
-    console.log(`[activitiesCache] found "${key}" in cache`);
+    console.log(`[activitiesCache] resolved slug "${key}" → ${activity.id}`);
   } else {
-    console.log(`[activitiesCache] "${key}" not found in cache`);
+    console.log(`[activitiesCache] slug "${key}" not found after lookup`);
   }
   return activity;
 }
