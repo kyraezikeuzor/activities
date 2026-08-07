@@ -47,7 +47,7 @@ export function ActivityBoardCard({ activity }: { activity: Activity }) {
 
         <Link
           href={`/${activity.slug}`}
-          className="mt-auto inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-sunrise-600"
+          className="mt-auto inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-bold text-primary-foreground shadow-sm transition-colors hover:bg-sunrise-600"
         >
           View &amp; Claim
           <ArrowRight className="h-4 w-4" aria-hidden />
