@@ -1,29 +1,13 @@
 import {
-  GraduationCap,
-  Package,
-  Tag,
-  Users,
-  type LucideIcon,
-} from "lucide-react";
+  CATEGORY_ICONS,
+  CATEGORIES,
+  type Category,
+} from "@/lib/category";
 import { ActivitiesHeader } from "@/components/ActivitiesHeader";
 import { ActivityBoardCard } from "@/components/ActivityBoardCard";
 import type { Activity } from "@/lib/airtable";
 
-export const CATEGORIES = [
-  "Education",
-  "Fundraising",
-  "Programs",
-  "Supplies",
-] as const;
-
-export type Category = (typeof CATEGORIES)[number];
-
-const CATEGORY_ICONS: Record<Category, LucideIcon> = {
-  Education: GraduationCap,
-  Fundraising: Tag,
-  Programs: Users,
-  Supplies: Package,
-};
+export { CATEGORIES, type Category } from "@/lib/category";
 
 /**
  * Board shows Open / Full. Live Airtable also uses "Active" for open slots —
@@ -60,13 +44,13 @@ export function ActivitiesBoard({ activities }: { activities: Activity[] }) {
               >
                 <div className="flex items-center gap-2">
                   <Icon
-                    className="h-4 w-4 shrink-0 text-primary"
+                    className="h-5 w-5 shrink-0 text-muted-foreground"
                     aria-hidden
                   />
-                  <h2 className="text-sm font-bold tracking-normal text-foreground">
+                  <h2 className="text-base font-medium text-muted-foreground">
                     {category}
                   </h2>
-                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-[11px] font-medium tracking-normal text-muted-foreground">
+                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-xs font-medium text-muted-foreground">
                     {columnActivities.length}
                   </span>
                 </div>

@@ -7,57 +7,51 @@ export function ActivityBoardCard({ activity }: { activity: Activity }) {
   return (
     <Card
       variant="outline"
-      className="flex h-full flex-col border border-border !p-4 shadow-sm sm:!p-4"
+      className="flex h-full flex-col rounded-xl border-2 border-border !p-5 shadow-none sm:!p-5"
     >
-      <CardContent className="flex flex-1 flex-col gap-2.5">
-        {activity.type ? (
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-primary">
-            {activity.type}
-          </p>
-        ) : null}
-
-        <h3 className="text-sm font-bold leading-snug tracking-normal text-foreground">
+      <CardContent className="flex flex-1 flex-col gap-2">
+        <h3 className="text-base font-semibold leading-snug text-foreground/75">
           {activity.title}
         </h3>
 
+        {/* Description temporarily hidden
         {activity.description ? (
-          <p className="line-clamp-2 text-xs leading-relaxed tracking-normal text-muted-foreground">
+          <p className="mt-0.5 line-clamp-2 font-medium text-muted-foreground">
             {activity.description}
           </p>
         ) : null}
+        */}
 
-        <div className="mt-auto space-y-2.5 pt-1">
-          <div className="flex flex-col gap-1.5 text-[11px] tracking-normal text-muted-foreground">
-            <div className="flex items-center gap-1.5">
-              <Users className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        <div className="flex flex-col gap-1.5 pt-0.5 font-medium text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <Users className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+            <span>
+              {activity.slotsFilled} of {activity.slotsTotal} spots filled
+            </span>
+          </div>
+          {activity.hours > 0 ? (
+            <div className="flex items-center gap-2">
+              <Clock className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
               <span>
-                {activity.slotsFilled} of {activity.slotsTotal} spots filled
+                {activity.hours} {activity.hours === 1 ? "hour" : "hours"}
               </span>
             </div>
-            {activity.hours > 0 ? (
-              <div className="flex items-center gap-1.5">
-                <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                <span>
-                  {activity.hours} {activity.hours === 1 ? "hour" : "hours"}
-                </span>
-              </div>
-            ) : null}
-          </div>
-
-          {activity.location ? (
-            <span className="inline-flex w-fit rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium tracking-normal text-muted-foreground">
-              {activity.location}
-            </span>
           ) : null}
-
-          <Link
-            href={`/${activity.slug}`}
-            className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md bg-primary px-3 text-xs font-bold tracking-normal text-primary-foreground shadow-sm transition-colors hover:bg-sunrise-600"
-          >
-            View &amp; Claim
-            <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-          </Link>
         </div>
+
+        {activity.location ? (
+          <span className="inline-flex w-fit rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
+            {activity.location}
+          </span>
+        ) : null}
+
+        <Link
+          href={`/${activity.slug}`}
+          className="mt-auto inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-sunrise-600"
+        >
+          View &amp; Claim
+          <ArrowRight className="h-4 w-4" aria-hidden />
+        </Link>
       </CardContent>
     </Card>
   );
