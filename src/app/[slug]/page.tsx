@@ -45,10 +45,12 @@ export default async function ActivityDetailPage({ params }: PageProps) {
   const CategoryIcon = categoryStyle.icon;
 
   // Most recent sign-ups last in Airtable array — show newest first, cap at 8
-  const signUpPeople = await getPeopleByIds([...activity.signUpIds].reverse());
-  const recentSignUps = signUpPeople.slice(0, 8).map((person) => ({
+  const recentIds = [...activity.signUpIds].reverse().slice(0, 8);
+  const signUpPeople = await getPeopleByIds(recentIds);
+  const recentSignUps = signUpPeople.map((person) => ({
     id: person.id,
     name: formatShortName(person.firstName, person.lastName),
+    initials: person.initials,
   }));
 
   const leftColumn = (
@@ -75,30 +77,28 @@ export default async function ActivityDetailPage({ params }: PageProps) {
         </h1>
 
         {activity.description ? (
-          <p className="font-normal tracking-normal text-muted-foreground">
+          <p className="text-base font-normal leading-relaxed text-muted-foreground">
             {activity.description}
           </p>
         ) : null}
 
         {(activity.hours > 0 || deadline) ? (
-          <div className="flex flex-wrap items-center gap-8 font-normal tracking-normal text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2">
             {activity.hours > 0 ? (
-              <p className="flex items-center gap-1.5">
+              <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-2.5 py-1.5 text-sm text-muted-foreground">
                 <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                Hours:{" "}
-                <span className="text-lg font-bold text-foreground/75">
+                <span className="font-medium">Hours</span>
+                <span className="font-bold text-foreground/75">
                   {activity.hours}
                 </span>
-              </p>
+              </span>
             ) : null}
             {deadline ? (
-              <p className="flex items-center gap-1.5">
+              <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-2.5 py-1.5 text-sm text-muted-foreground">
                 <Calendar className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                Deadline:{" "}
-                <span className="text-lg font-bold text-foreground/75">
-                  {deadline}
-                </span>
-              </p>
+                <span className="font-medium">Deadline</span>
+                <span className="font-bold text-foreground/75">{deadline}</span>
+              </span>
             ) : null}
           </div>
         ) : null}

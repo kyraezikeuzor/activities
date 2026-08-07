@@ -9,6 +9,7 @@ import { VOLUNTEER_EMAIL } from "@/lib/format";
 export type RecentSignUp = {
   id: string;
   name: string;
+  initials: string;
 };
 
 type ActivityDetailClientProps = {
@@ -38,8 +39,8 @@ export function ActivityDetailClient({
   const [email, setEmail] = useState<string | null>(null);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)]">
-      <div className="space-y-6 p-6 sm:p-8 lg:border-r lg:border-border">
+    <div className="grid grid-cols-1 gap-0 lg:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)] lg:gap-2">
+      <div className="space-y-6 p-6 sm:p-8 lg:pr-10">
         {leftColumn}
         <NextSteps
           activityId={activityId}
@@ -61,7 +62,7 @@ export function ActivityDetailClient({
         </p>
       </div>
 
-      <div className="p-6 sm:p-8">
+      <div className="border-t border-border p-6 sm:p-8 lg:border-t-0 lg:border-l lg:border-border/60 lg:pl-10">
         <SignUpPanel
           activityId={activityId}
           slotsFilled={slotsFilled}

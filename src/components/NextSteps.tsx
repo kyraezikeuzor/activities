@@ -35,17 +35,25 @@ function StepLink({
 
 function StepRow({
   number,
+  lead,
   children,
 }: {
   number: number;
-  children: ReactNode;
+  lead: string;
+  children?: ReactNode;
 }) {
   return (
-    <div className="flex items-start gap-2 font-normal tracking-normal text-muted-foreground">
-      <span className="w-4 shrink-0 text-center leading-normal tabular-nums">
-        {number}.
+    <div className="flex items-start gap-3 font-normal tracking-normal text-muted-foreground">
+      <span
+        className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-bold tabular-nums text-foreground"
+        aria-hidden
+      >
+        {number}
       </span>
-      <span className="min-w-0 leading-normal">{children}</span>
+      <span className="min-w-0 leading-relaxed">
+        <span className="font-semibold text-foreground/80">{lead}</span>
+        {children}
+      </span>
     </div>
   );
 }
@@ -58,6 +66,8 @@ export function NextSteps({
 }: NextStepsProps) {
   const normalizedType = type?.trim().toLowerCase() ?? "";
   const isSubmission = normalizedType === "submission";
+  const isParticipationOrAttendance =
+    normalizedType === "participation" || normalizedType === "attendance";
 
   const submissionUrl = buildFilloutUrl(SUBMISSION_FORM_URL, {
     activity_id: activityId,
@@ -77,18 +87,26 @@ export function NextSteps({
       <h2 className="text-base font-semibold tracking-normal text-foreground/75">
         Next Steps
       </h2>
-      <div className="space-y-2.5">
-        <StepRow number={step++}>Sign up on this page</StepRow>
+      <div className="space-y-4">
+        <StepRow number={step++} lead="Sign up">
+          {" "}
+          for this activity
+        </StepRow>
 
         {isSubmission ? (
-          <StepRow number={step++}>
-            Submit your work →{" "}
-            <StepLink href={submissionUrl}>Submission Form</StepLink>
+          <StepRow number={step++} lead="Submit your work">
+            {" "}
+            → <StepLink href={submissionUrl}>Submission Form</StepLink>
           </StepRow>
         ) : null}
 
-        <StepRow number={step++}>
-          Request hours for your work →{" "}
+        {isParticipationOrAttendance ? (
+          <StepRow number={step++} lead="Complete the work" />
+        ) : null}
+
+        <StepRow number={step++} lead="Request hours">
+          {" "}
+          for your work →{" "}
           <StepLink href={hoursUrl}>Hours Request Form</StepLink>
         </StepRow>
       </div>

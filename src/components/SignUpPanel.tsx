@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Check, Loader2, UserPlus, Users } from "lucide-react";
 import type { RecentSignUp } from "@/components/ActivityDetailClient";
 import { formatShortName } from "@/lib/category";
+import { avatarToneClass } from "@/lib/format";
 
 const APPLY_URL = "https://form.fillout.com/t/2VfsyEfiduus";
 
@@ -154,6 +155,7 @@ export function SignUpPanel({
           {
             id: person.id,
             name: formatShortName(person.firstName, person.lastName),
+            initials: person.initials,
           },
           ...prev,
         ].slice(0, 8);
@@ -224,7 +226,7 @@ export function SignUpPanel({
           : "Sign Up";
 
   return (
-    <aside className="flex flex-col gap-5 lg:pl-8">
+    <aside className="flex flex-col gap-5">
       <div>
         <h2 className="text-base font-semibold tracking-normal text-foreground/75">
           Availability
@@ -293,7 +295,9 @@ export function SignUpPanel({
           lookup.status === "signing_up" ||
           lookup.status === "signed_up" ? (
             <div className="flex items-center gap-3 rounded-xl border border-border bg-white p-3 shadow-sm">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sunrise-100 text-sm font-bold text-primary">
+              <div
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white ${avatarToneClass(lookup.person.id)}`}
+              >
                 {lookup.person.initials}
               </div>
               <div className="min-w-0">
@@ -338,7 +342,7 @@ export function SignUpPanel({
               lookup.status === "signed_up" ||
               lookup.status === "not_found"
             }
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-[#f82c4e] px-4 text-sm font-bold tracking-normal text-white shadow-sm transition-opacity hover:opacity-90 disabled:pointer-events-none disabled:opacity-50"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-primary px-4 text-sm font-bold tracking-normal text-primary-foreground shadow-sm transition-colors hover:bg-sunrise-600 disabled:pointer-events-none disabled:opacity-50"
           >
             {busy ? (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
@@ -353,7 +357,7 @@ export function SignUpPanel({
       </div>
 
       <div className="border-t border-border pt-5">
-        <h3 className="text-base font-medium tracking-normal text-foreground">
+        <h3 className="text-base font-medium tracking-normal text-foreground/75">
           Recent Sign Ups
         </h3>
         {recentSignUps.length === 0 ? (
@@ -361,13 +365,17 @@ export function SignUpPanel({
             No one has signed up yet. Be the first!
           </p>
         ) : (
-          <ul className="mt-3 space-y-1.5">
+          <ul className="mt-3 space-y-3">
             {recentSignUps.map((signUp) => (
-              <li
-                key={signUp.id}
-                className="text-sm font-normal text-foreground"
-              >
-                {signUp.name}
+              <li key={signUp.id} className="flex items-center gap-2.5">
+                <span
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${avatarToneClass(signUp.id)}`}
+                >
+                  {signUp.initials}
+                </span>
+                <span className="text-sm font-medium text-foreground">
+                  {signUp.name}
+                </span>
               </li>
             ))}
           </ul>

@@ -1,3 +1,19 @@
+/** Brand-adjacent avatar tones (white initials). */
+const AVATAR_TONES = [
+  "bg-primary", // sunrise orange
+  "bg-sunrise-600", // deeper orange
+  "bg-navy-700", // navy
+] as const;
+
+/** Stable tone from seed — cycles through 2–3 brand colors, not a random palette. */
+export function avatarToneClass(seed: string): string {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+  return AVATAR_TONES[hash % AVATAR_TONES.length];
+}
+
 export const APPLY_URL = "https://form.fillout.com/t/2VfsyEfiduus";
 
 export const HOURS_REQUEST_FORM_URL =
