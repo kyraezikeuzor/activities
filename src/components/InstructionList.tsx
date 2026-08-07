@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { InstructionBlock } from "@/lib/format";
 
 const URL_RE = /(https?:\/\/[^\s]+)/g;
 
@@ -26,17 +27,44 @@ function linkify(text: string): ReactNode[] {
   });
 }
 
-export function InstructionList({ lines }: { lines: string[] }) {
-  if (lines.length === 0) return null;
+function SampleBlock({ text }: { text: string }) {
+  return (
+    <div className="rounded-xl border border-border bg-muted/60 px-4 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        Copy this message
+      </p>
+      <p className="mt-2 font-mono text-[13px] leading-relaxed text-foreground">
+        {text}
+      </p>
+    </div>
+  );
+}
+
+export function InstructionList({ blocks }: { blocks: InstructionBlock[] }) {
+  if (blocks.length === 0) return null;
+
+  let stepNumber = 0;
 
   return (
-    <ul className="space-y-2.5 text-sm leading-relaxed text-muted-foreground">
-      {lines.map((line, i) => (
-        <li key={i} className="flex gap-2">
-          <span className="shrink-0 select-none text-muted-foreground">-</span>
-          <span>{linkify(line)}</span>
-        </li>
-      ))}
-    </ul>
+    <div className="space-y-2.5">
+      {blocks.map((block, i) => {
+        if (block.kind === "sample") {
+          return <SampleBlock key={`sample-${i}`} text={block.text} />;
+        }
+
+        stepNumber += 1;
+        return (
+          <div
+            key={`step-${i}`}
+            className="flex items-start gap-2 font-normal tracking-normal text-muted-foreground"
+          >
+            <span className="w-4 shrink-0 text-center leading-normal tabular-nums">
+              {stepNumber}.
+            </span>
+            <span className="min-w-0 leading-normal">{linkify(block.text)}</span>
+          </div>
+        );
+      })}
+    </div>
   );
 }

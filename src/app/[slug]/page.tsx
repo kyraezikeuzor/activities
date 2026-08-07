@@ -1,21 +1,13 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import type { ReactNode } from "react";
-import {
-  ArrowLeft,
-  Calendar,
-  Clock,
-  Mail,
-} from "lucide-react";
-import { SignUpPanel } from "@/components/SignUpPanel";
+import { ArrowLeft, Calendar, Clock } from "lucide-react";
+import { ActivityDetailClient } from "@/components/ActivityDetailClient";
+import { ActivityDetailHeader } from "@/components/ActivitiesHeader";
 import { InstructionList } from "@/components/InstructionList";
 import { getActivityBySlug } from "@/lib/activitiesCache";
-import {
-  formatDeadline,
-  HOURS_REQUEST_FORM_URL,
-  parseInstructionLines,
-  VOLUNTEER_EMAIL,
-} from "@/lib/format";
+import { formatShortName, getCategoryStyle } from "@/lib/category";
+import { formatDeadline, parseInstructionBlocks } from "@/lib/format";
+import { getPeopleByIds } from "@/lib/peopleCache";
 
 export const dynamic = "force-dynamic";
 
@@ -33,35 +25,8 @@ export async function generateMetadata({ params }: PageProps) {
   };
 }
 
-function MetaIcon({
-  children,
-  className,
-}: {
-  children: ReactNode;
-  className: string;
-}) {
-  return (
-    <div
-      className={`flex h-9 w-9 items-center justify-center rounded-lg shadow-sm ${className}`}
-    >
-      {children}
-    </div>
-  );
-}
-
-const CATEGORY_BADGE: Record<string, string> = {
-  education: "bg-sky-500 text-white",
-  fundraising: "bg-pink-500 text-white",
-  programs: "bg-navy-700 text-white",
-  supplies: "bg-sunrise-600 text-white",
-};
-
-function categoryBadgeClass(category: string | null): string {
-  if (!category) return "bg-sky-500 text-white";
-  return (
-    CATEGORY_BADGE[category.trim().toLowerCase()] ?? "bg-sky-500 text-white"
-  );
-}
+const sectionTitleClass =
+  "text-base font-semibold tracking-normal text-foreground/75";
 
 export default async function ActivityDetailPage({ params }: PageProps) {
   const { slug } = await params;
@@ -69,140 +34,112 @@ export default async function ActivityDetailPage({ params }: PageProps) {
   if (!activity) notFound();
 
   const deadline = formatDeadline(activity.endDate);
-  const instructionLines = activity.instructions
-    ? parseInstructionLines(activity.instructions)
+  const instructionBlocks = activity.instructions
+    ? parseInstructionBlocks(activity.instructions)
     : [];
   const isFull =
     activity.status?.toLowerCase() === "full" ||
-    (activity.slotsTotal > 0 &&
-      activity.slotsFilled >= activity.slotsTotal);
+    (activity.slotsTotal > 0 && activity.slotsFilled >= activity.slotsTotal);
+
+  const categoryStyle = getCategoryStyle(activity.category);
+  const CategoryIcon = categoryStyle.icon;
+
+  // Most recent sign-ups last in Airtable array — show newest first, cap at 8
+  const signUpPeople = await getPeopleByIds([...activity.signUpIds].reverse());
+  const recentSignUps = signUpPeople.slice(0, 8).map((person) => ({
+    id: person.id,
+    name: formatShortName(person.firstName, person.lastName),
+  }));
+
+  const leftColumn = (
+    <>
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
+          {activity.category ? (
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[13px] font-semibold ${categoryStyle.badge}`}
+            >
+              <CategoryIcon className="h-3.5 w-3.5" aria-hidden />
+              {activity.category}
+            </span>
+          ) : null}
+          {activity.type ? (
+            <span className="inline-flex items-center rounded-full border border-border bg-white px-2.5 py-1 text-[13px] font-medium text-foreground">
+              {activity.type}
+            </span>
+          ) : null}
+        </div>
+
+        <h1 className="text-[1.45rem] font-bold leading-tight tracking-normal text-foreground/75 sm:text-[1.65rem]">
+          {activity.title}
+        </h1>
+
+        {activity.description ? (
+          <p className="font-normal tracking-normal text-muted-foreground">
+            {activity.description}
+          </p>
+        ) : null}
+
+        {(activity.hours > 0 || deadline) ? (
+          <div className="flex flex-wrap items-center gap-8 font-normal tracking-normal text-muted-foreground">
+            {activity.hours > 0 ? (
+              <p className="flex items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                Hours:{" "}
+                <span className="text-lg font-bold text-foreground/75">
+                  {activity.hours}
+                </span>
+              </p>
+            ) : null}
+            {deadline ? (
+              <p className="flex items-center gap-1.5">
+                <Calendar className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                Deadline:{" "}
+                <span className="text-lg font-bold text-foreground/75">
+                  {deadline}
+                </span>
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+
+      {instructionBlocks.length > 0 ? (
+        <section className="space-y-3">
+          <h2 className={sectionTitleClass}>Instructions</h2>
+          <InstructionList blocks={instructionBlocks} />
+        </section>
+      ) : null}
+    </>
+  );
 
   return (
     <div
       className="min-h-screen bg-cover bg-center bg-no-repeat"
       style={{ backgroundImage: "url(/activity-bg.jpg)" }}
     >
+      <ActivityDetailHeader />
+
       <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
         <Link
           href="/"
-          className="mb-5 inline-flex items-center gap-2 rounded-full border border-border bg-white px-3.5 py-1.5 text-sm font-medium tracking-normal text-foreground shadow-sm transition-colors hover:bg-muted"
+          className="mb-5 inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden />
           Back to Activities
         </Link>
 
-        <div className="overflow-hidden rounded-2xl border border-border bg-white shadow-lg">
-          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)]">
-            {/* Left: activity details */}
-            <div className="space-y-6 p-6 sm:p-8 lg:border-r lg:border-border">
-              <div className="space-y-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  {activity.category ? (
-                    <span
-                      className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${categoryBadgeClass(activity.category)}`}
-                    >
-                      {activity.category}
-                    </span>
-                  ) : null}
-                  {activity.type ? (
-                    <span className="inline-flex rounded-full border border-border bg-white px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                      {activity.type}
-                    </span>
-                  ) : null}
-                </div>
-
-                <h1 className="text-2xl font-bold tracking-normal text-foreground sm:text-3xl">
-                  {activity.title}
-                </h1>
-
-                {activity.description ? (
-                  <p className="text-sm leading-relaxed tracking-normal text-muted-foreground sm:text-base">
-                    {activity.description}
-                  </p>
-                ) : null}
-              </div>
-
-              <div className="flex flex-wrap gap-8">
-                {activity.hours > 0 ? (
-                  <div className="flex items-start gap-3">
-                    <MetaIcon className="bg-muted text-muted-foreground">
-                      <Clock className="h-4 w-4" aria-hidden />
-                    </MetaIcon>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Hours</p>
-                      <p className="text-base font-bold text-foreground">
-                        {activity.hours}
-                      </p>
-                    </div>
-                  </div>
-                ) : null}
-
-                {deadline ? (
-                  <div className="flex items-start gap-3">
-                    <MetaIcon className="bg-muted text-muted-foreground">
-                      <Calendar className="h-4 w-4" aria-hidden />
-                    </MetaIcon>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Deadline</p>
-                      <p className="text-base font-bold text-foreground">
-                        {deadline}
-                      </p>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-
-              {instructionLines.length > 0 ? (
-                <section className="space-y-3">
-                  <h2 className="text-xs font-bold uppercase tracking-wider text-foreground">
-                    Instructions
-                  </h2>
-                  <InstructionList lines={instructionLines} />
-                </section>
-              ) : null}
-
-              <div className="rounded-xl bg-muted px-4 py-4 sm:px-5">
-                <h2 className="text-sm font-bold tracking-normal text-foreground">
-                  Next Steps
-                </h2>
-                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                  Submit the{" "}
-                  <a
-                    href={HOURS_REQUEST_FORM_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-medium text-primary underline underline-offset-2 hover:text-sunrise-600"
-                  >
-                    Hours Request Form
-                  </a>{" "}
-                  once you have completed this activity.
-                </p>
-              </div>
-
-              <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                <Mail className="h-4 w-4 shrink-0" aria-hidden />
-                <span>
-                  Questions? Email{" "}
-                  <a
-                    href={`mailto:${VOLUNTEER_EMAIL}`}
-                    className="font-medium text-primary underline underline-offset-2 hover:text-sunrise-600"
-                  >
-                    {VOLUNTEER_EMAIL}
-                  </a>
-                </span>
-              </p>
-            </div>
-
-            {/* Right: sign ups */}
-            <div className="p-6 sm:p-8">
-              <SignUpPanel
-                activityId={activity.id}
-                slotsFilled={activity.slotsFilled}
-                slotsTotal={activity.slotsTotal}
-                isFull={isFull}
-              />
-            </div>
-          </div>
+        <div className="overflow-hidden rounded-3xl border-4 border-white bg-white shadow-none">
+          <ActivityDetailClient
+            activityId={activity.id}
+            type={activity.type}
+            submissionFormat={activity.submissionFormat}
+            slotsFilled={activity.slotsFilled}
+            slotsTotal={activity.slotsTotal}
+            isFull={isFull}
+            recentSignUps={recentSignUps}
+            leftColumn={leftColumn}
+          />
         </div>
       </div>
     </div>

@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Check, Loader2, UserPlus, Users } from "lucide-react";
+import type { RecentSignUp } from "@/components/ActivityDetailClient";
+import { formatShortName } from "@/lib/category";
 
 const APPLY_URL = "https://form.fillout.com/t/2VfsyEfiduus";
 
@@ -11,6 +13,8 @@ type MatchedPerson = {
   email: string | null;
   displayName: string;
   initials: string;
+  firstName?: string | null;
+  lastName?: string | null;
 };
 
 type SignUpPanelProps = {
@@ -18,6 +22,8 @@ type SignUpPanelProps = {
   slotsFilled: number;
   slotsTotal: number;
   isFull: boolean;
+  recentSignUps?: RecentSignUp[];
+  onEmailChange?: (email: string | null) => void;
 };
 
 type LookupState =
@@ -34,16 +40,23 @@ export function SignUpPanel({
   slotsFilled: initialSlotsFilled,
   slotsTotal,
   isFull: initialIsFull,
+  recentSignUps: initialRecentSignUps = [],
+  onEmailChange,
 }: SignUpPanelProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [lookup, setLookup] = useState<LookupState>({ status: "idle" });
   const [slotsFilled, setSlotsFilled] = useState(initialSlotsFilled);
+  const [recentSignUps, setRecentSignUps] = useState(initialRecentSignUps);
 
   // Keep spots in sync when the server re-renders with a fresh Airtable rollup
   useEffect(() => {
     setSlotsFilled(initialSlotsFilled);
   }, [initialSlotsFilled]);
+
+  useEffect(() => {
+    setRecentSignUps(initialRecentSignUps);
+  }, [initialRecentSignUps]);
 
   const isFull =
     initialIsFull || (slotsTotal > 0 && slotsFilled >= slotsTotal);
@@ -75,6 +88,7 @@ export function SignUpPanel({
 
     if (data.found && data.person) {
       setLookup({ status: "found", person: data.person });
+      onEmailChange?.(data.person.email ?? trimmed);
     } else {
       setLookup({ status: "not_found" });
     }
@@ -133,6 +147,17 @@ export function SignUpPanel({
         );
         setSlotsFilled(data.activity.slotsFilled);
       }
+
+      setRecentSignUps((prev) => {
+        if (prev.some((s) => s.id === person.id)) return prev;
+        return [
+          {
+            id: person.id,
+            name: formatShortName(person.firstName, person.lastName),
+          },
+          ...prev,
+        ].slice(0, 8);
+      });
 
       setLookup({ status: "signed_up", person });
       router.refresh();
@@ -201,11 +226,11 @@ export function SignUpPanel({
   return (
     <aside className="flex flex-col gap-5 lg:pl-8">
       <div>
-        <h2 className="text-xs font-bold uppercase tracking-wider text-foreground">
-          Sign Ups
+        <h2 className="text-base font-semibold tracking-normal text-foreground/75">
+          Availability
         </h2>
-        <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
-          <Users className="h-4 w-4 shrink-0" aria-hidden />
+        <div className="mt-3 flex items-center gap-2 font-normal text-muted-foreground">
+          <Users className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
           <span>
             {slotsFilled} of {slotsTotal} spots filled
           </span>
@@ -216,48 +241,39 @@ export function SignUpPanel({
 
       <div className="space-y-4">
         <div className="space-y-1.5">
-          <h3 className="text-base font-bold tracking-normal text-foreground">
+          <h3 className="text-base font-semibold tracking-normal text-foreground/75">
             Volunteer Sign Up
           </h3>
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            Enter your email and click sign up to join this activity.
+          <p className="font-normal tracking-normal text-muted-foreground">
+            Enter your email and sign up.
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="space-y-1.5">
-            <label
-              htmlFor="volunteer-email"
-              className="text-sm font-bold text-foreground"
-            >
-              Volunteer Email
-            </label>
-            <p className="text-xs text-muted-foreground">
-              Enter the email you used to apply to Omelora.
-            </p>
-            <input
-              id="volunteer-email"
-              name="email"
-              type="email"
-              placeholder="you@example.com"
-              value={email}
-              disabled={
-                isFull ||
-                busy ||
-                lookup.status === "signed_up" ||
-                lookup.status === "found"
+          <input
+            id="volunteer-email"
+            name="email"
+            type="email"
+            placeholder="you@example.com"
+            value={email}
+            disabled={
+              isFull ||
+              busy ||
+              lookup.status === "signed_up" ||
+              lookup.status === "found"
+            }
+            onChange={(e) => {
+              setEmail(e.target.value);
+              onEmailChange?.(e.target.value.trim() || null);
+              if (lookup.status !== "idle" && lookup.status !== "loading") {
+                setLookup({ status: "idle" });
               }
-              onChange={(e) => {
-                setEmail(e.target.value);
-                if (lookup.status !== "idle" && lookup.status !== "loading") {
-                  setLookup({ status: "idle" });
-                }
-              }}
-              autoComplete="email"
-              required
-              className={`flex h-10 w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${inputHighlight}`}
-            />
-          </div>
+            }}
+            autoComplete="email"
+            required
+            aria-label="Volunteer email"
+            className={`flex h-10 w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${inputHighlight}`}
+          />
 
           {lookup.status === "loading" ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -322,7 +338,7 @@ export function SignUpPanel({
               lookup.status === "signed_up" ||
               lookup.status === "not_found"
             }
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-primary px-4 text-sm font-bold tracking-normal text-primary-foreground shadow-sm transition-colors hover:bg-sunrise-600 disabled:pointer-events-none disabled:opacity-50"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-[#f82c4e] px-4 text-sm font-bold tracking-normal text-white shadow-sm transition-opacity hover:opacity-90 disabled:pointer-events-none disabled:opacity-50"
           >
             {busy ? (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
@@ -334,6 +350,28 @@ export function SignUpPanel({
             {buttonLabel}
           </button>
         </form>
+      </div>
+
+      <div className="border-t border-border pt-5">
+        <h3 className="text-base font-medium tracking-normal text-foreground">
+          Recent Sign Ups
+        </h3>
+        {recentSignUps.length === 0 ? (
+          <p className="mt-3 text-sm text-muted-foreground">
+            No one has signed up yet. Be the first!
+          </p>
+        ) : (
+          <ul className="mt-3 space-y-1.5">
+            {recentSignUps.map((signUp) => (
+              <li
+                key={signUp.id}
+                className="text-sm font-normal text-foreground"
+              >
+                {signUp.name}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </aside>
   );
