@@ -8,6 +8,7 @@ const config: Config = {
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/lib/**/*.{js,ts,jsx,tsx}",
     // Scan Sunrise components so their utility classes are generated
     "./node_modules/@omelora/sunrise/src/**/*.{js,ts,jsx,tsx}",
   ],

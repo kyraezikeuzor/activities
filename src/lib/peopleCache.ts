@@ -4,18 +4,20 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 
 /** In-memory People cache keyed by lowercased email. */
 const peopleByEmail = new Map<string, Person>();
+/** In-memory People cache keyed by Airtable record id. */
+const peopleById = new Map<string, Person>();
 
 let lastRefreshedAt: number | null = null;
 let refreshInFlight: Promise<number> | null = null;
 
 function isCacheStale(): boolean {
-  if (lastRefreshedAt === null || peopleByEmail.size === 0) return true;
+  if (lastRefreshedAt === null || peopleById.size === 0) return true;
   return Date.now() - lastRefreshedAt > CACHE_TTL_MS;
 }
 
 /**
- * Fetch ALL People records from Airtable and rebuild the email cache.
- * Returns the number of cached records.
+ * Fetch ALL People records from Airtable and rebuild the caches.
+ * Returns the number of cached records (by id).
  */
 export async function refreshPeopleCache(): Promise<number> {
   if (refreshInFlight) {
@@ -29,7 +31,9 @@ export async function refreshPeopleCache(): Promise<number> {
     const people = await fetchAllPeople();
 
     peopleByEmail.clear();
+    peopleById.clear();
     for (const person of people) {
+      peopleById.set(person.id, person);
       const email = person.email?.trim().toLowerCase();
       if (!email) continue;
       peopleByEmail.set(email, person);
@@ -38,9 +42,9 @@ export async function refreshPeopleCache(): Promise<number> {
     lastRefreshedAt = Date.now();
     const elapsed = lastRefreshedAt - started;
     console.log(
-      `[peopleCache] refresh complete — cached ${peopleByEmail.size} people (${elapsed}ms)`
+      `[peopleCache] refresh complete — cached ${peopleById.size} people (${elapsed}ms)`
     );
-    return peopleByEmail.size;
+    return peopleById.size;
   })();
 
   try {
@@ -76,4 +80,23 @@ export async function getPersonByEmail(
     console.log(`[peopleCache] "${key}" not found in cache`);
   }
   return person;
+}
+
+/**
+ * Resolve People by Airtable record IDs (e.g. Linked Sign Ups).
+ * Preserves input order; skips missing IDs.
+ */
+export async function getPeopleByIds(ids: string[]): Promise<Person[]> {
+  if (ids.length === 0) return [];
+
+  if (isCacheStale()) {
+    await refreshPeopleCache();
+  }
+
+  const people: Person[] = [];
+  for (const id of ids) {
+    const person = peopleById.get(id);
+    if (person) people.push(person);
+  }
+  return people;
 }
