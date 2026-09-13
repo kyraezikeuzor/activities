@@ -89,7 +89,11 @@ function SampleBlock({ text }: { text: string }) {
 export function InstructionList({ blocks }: { blocks: InstructionBlock[] }) {
   if (blocks.length === 0) return null;
 
-  let stepNumber = 0;
+  const stepNumbers = blocks.map(
+    (_, index) =>
+      blocks.slice(0, index + 1).filter((block) => block.kind !== "sample")
+        .length
+  );
 
   return (
     <div className="space-y-4">
@@ -98,13 +102,12 @@ export function InstructionList({ blocks }: { blocks: InstructionBlock[] }) {
           return <SampleBlock key={`sample-${i}`} text={block.text} />;
         }
 
-        stepNumber += 1;
         return (
           <div
             key={`step-${i}`}
             className="flex items-start gap-3 font-normal tracking-normal text-muted-foreground"
           >
-            <StepBadge number={stepNumber} />
+            <StepBadge number={stepNumbers[i]} />
             <span className="min-w-0 leading-relaxed">
               {emphasizeLead(block.text)}
             </span>
