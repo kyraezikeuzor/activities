@@ -3,6 +3,8 @@
  * Field names match the live base exactly — do not rename.
  */
 
+import { buildClaimCreateFields, deriveEffectiveSignUps } from "@/lib/claims";
+
 const AIRTABLE_API_URL = "https://api.airtable.com/v0";
 
 function getConfig() {
@@ -159,14 +161,6 @@ export function mapActivityRecord(record: {
     record.id
   );
   const signUpIds = asStringArray(record.fields["Linked Sign Ups"]);
-  const slotsFilledRaw = record.fields["Slots Filled"];
-  // Prefer Airtable rollup; coerce string numbers if the API returns them that way
-  const slotsFilledFromRollup =
-    typeof slotsFilledRaw === "number"
-      ? slotsFilledRaw
-      : typeof slotsFilledRaw === "string" && slotsFilledRaw.trim() !== ""
-        ? Number(slotsFilledRaw)
-        : NaN;
 
   return {
     id: record.id,
@@ -183,9 +177,9 @@ export function mapActivityRecord(record: {
       typeof record.fields["Slots Total"] === "number"
         ? record.fields["Slots Total"]
         : 0,
-    slotsFilled: Number.isFinite(slotsFilledFromRollup)
-      ? slotsFilledFromRollup
-      : 0,
+    // This legacy-only value is replaced by enrichActivityWithClaims before
+    // an Activity is exposed to the UI. The raw rollup remains in fields.
+    slotsFilled: new Set(signUpIds).size,
     status: record.fields.Status?.trim() || null,
     claimFormUrl: record.fields["Fillout Link"]?.trim() || null,
     startDate: record.fields["Start Date"]?.trim() || null,
@@ -200,9 +194,31 @@ export function mapActivityRecord(record: {
   };
 }
 
+export function enrichActivityWithClaims(
+  activity: Activity,
+  claims: Claim[]
+): Activity {
+  const effective = deriveEffectiveSignUps(
+    activity.id,
+    asStringArray(activity.fields["Linked Sign Ups"]),
+    claims
+  );
+
+  return {
+    ...activity,
+    slotsFilled: effective.slotsFilled,
+    signUpIds: effective.personIds,
+  };
+}
+
 export async function fetchAllActivities(): Promise<Activity[]> {
-  const records = await listAllRecords<ActivityFields>("Activities");
-  return records.map(mapActivityRecord);
+  const [records, claims] = await Promise.all([
+    listAllRecords<ActivityFields>("Activities"),
+    fetchAllClaims(),
+  ]);
+  return records
+    .map(mapActivityRecord)
+    .map((activity) => enrichActivityWithClaims(activity, claims));
 }
 
 export async function getActivityRecordById(
@@ -249,118 +265,6 @@ export async function getActivityRecordById(
     createdTime: string;
     fields: ActivityFields;
   };
-}
-
-/**
- * Append a Person record ID to Activities."Linked Sign Ups" (linked-record array).
- * Fetches current links first, then PATCHes the full updated array.
- */
-export async function addPersonToActivitySignUps(
-  activityId: string,
-  personId: string
-): Promise<Activity> {
-  console.log("[airtable] addPersonToActivitySignUps start", {
-    activityId,
-    personId,
-  });
-
-  const current = await getActivityRecordById(activityId);
-  if (!current) {
-    throw new Error(`Activity not found: ${activityId}`);
-  }
-
-  const existing = asStringArray(current.fields["Linked Sign Ups"]);
-  console.log("[airtable] current Linked Sign Ups", {
-    activityId,
-    existing,
-    count: existing.length,
-  });
-
-  if (existing.includes(personId)) {
-    console.log(
-      "[airtable] person already in Linked Sign Ups — returning without PATCH",
-      { activityId, personId }
-    );
-    return mapActivityRecord(current);
-  }
-
-  const nextSignUps = [...existing, personId];
-  const { apiKey, baseId } = getConfig();
-  const url = `${AIRTABLE_API_URL}/${baseId}/${encodeURIComponent("Activities")}/${activityId}`;
-  const payload = {
-    fields: {
-      "Linked Sign Ups": nextSignUps,
-    },
-  };
-
-  console.log("[airtable] PATCH Activity Linked Sign Ups", {
-    method: "PATCH",
-    table: "Activities",
-    recordId: activityId,
-    field: "Linked Sign Ups",
-    newValue: nextSignUps,
-    url,
-    payload,
-  });
-
-  const res = await fetch(url, {
-    method: "PATCH",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-    cache: "no-store",
-  });
-
-  const bodyText = await res.text();
-  let parsed: unknown = bodyText;
-  try {
-    parsed = JSON.parse(bodyText);
-  } catch {
-    // keep raw text
-  }
-
-  console.log("[airtable] PATCH Activity response", {
-    status: res.status,
-    ok: res.ok,
-    body: parsed,
-  });
-
-  if (!res.ok) {
-    console.error("[airtable] PATCH Activity Linked Sign Ups FAILED", {
-      status: res.status,
-      body: parsed,
-      activityId,
-      personId,
-    });
-    throw new Error(
-      `Airtable Activities update failed (${res.status}): ${bodyText}`
-    );
-  }
-
-  // Rollups like "Slots Filled" are often stale/missing on PATCH responses —
-  // re-GET so we always return the live Airtable rollup value.
-  const fresh = await getActivityRecordById(activityId);
-  if (!fresh) {
-    console.warn(
-      "[airtable] re-GET after PATCH returned null — falling back to PATCH body"
-    );
-    const updated = parsed as {
-      id: string;
-      createdTime: string;
-      fields: ActivityFields;
-    };
-    return mapActivityRecord(updated);
-  }
-
-  console.log("[airtable] re-GET after PATCH — Slots Filled rollup", {
-    activityId,
-    slotsFilled: fresh.fields["Slots Filled"],
-    linkedSignUps: fresh.fields["Linked Sign Ups"],
-  });
-
-  return mapActivityRecord(fresh);
 }
 
 // ——— People ———
@@ -416,6 +320,17 @@ export async function fetchAllPeople(): Promise<Person[]> {
   return records.map(mapPersonRecord);
 }
 
+/** Resolve a Person directly from Airtable using a normalized email. */
+export async function fetchPersonByEmail(email: string): Promise<Person | null> {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) return null;
+
+  const records = await listAllRecords<PersonFields>("People", {
+    filterByFormula: `LOWER({Email})=LOWER('${escapeFormulaString(normalized)}')`,
+  });
+  return records[0] ? mapPersonRecord(records[0]) : null;
+}
+
 /** Fetch a single People record by Airtable record id. */
 export async function fetchPersonById(id: string): Promise<Person | null> {
   const { apiKey, baseId } = getConfig();
@@ -459,3 +374,119 @@ export async function fetchPeopleByIds(ids: string[]): Promise<Person[]> {
     .filter((p): p is Person => p !== undefined);
 }
 
+// ——— Claims ———
+
+export type ClaimStatus =
+  | "Claimed"
+  | "In Progress"
+  | "Pending Review"
+  | "Completed"
+  | "Cancelled";
+
+export interface ClaimFields {
+  Id?: number;
+  "Linked Person"?: string[];
+  "Linked Activity"?: string[];
+  Status?: string;
+  "Claimed Date"?: string;
+  "Completed Date"?: string;
+}
+
+export interface Claim {
+  id: string;
+  createdTime: string;
+  fields: ClaimFields;
+  personId: string | null;
+  activityId: string | null;
+  status: string;
+  claimedAt: string;
+  completedAt: string | null;
+}
+
+export function mapClaimRecord(record: {
+  id: string;
+  createdTime: string;
+  fields: ClaimFields;
+}): Claim {
+  return {
+    id: record.id,
+    createdTime: record.createdTime,
+    fields: record.fields,
+    personId: asStringArray(record.fields["Linked Person"])[0] ?? null,
+    activityId: asStringArray(record.fields["Linked Activity"])[0] ?? null,
+    status: record.fields.Status?.trim() || "Claimed",
+    claimedAt: record.fields["Claimed Date"]?.trim() || record.createdTime,
+    completedAt: record.fields["Completed Date"]?.trim() || null,
+  };
+}
+
+export async function fetchAllClaims(): Promise<Claim[]> {
+  const records = await listAllRecords<ClaimFields>("Claims");
+  return records.map(mapClaimRecord);
+}
+
+export async function createClaim(input: {
+  personId: string;
+  activityId: string;
+}): Promise<Claim> {
+  const { apiKey, baseId } = getConfig();
+  const res = await fetch(
+    `${AIRTABLE_API_URL}/${baseId}/${encodeURIComponent("Claims")}`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        fields: buildClaimCreateFields(input.personId, input.activityId),
+      }),
+      cache: "no-store",
+    }
+  );
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Airtable Claims create failed (${res.status}): ${body}`);
+  }
+
+  return mapClaimRecord(
+    (await res.json()) as {
+      id: string;
+      createdTime: string;
+      fields: ClaimFields;
+    }
+  );
+}
+
+export async function updateClaimStatus(
+  claimId: string,
+  status: ClaimStatus
+): Promise<Claim> {
+  const { apiKey, baseId } = getConfig();
+  const res = await fetch(
+    `${AIRTABLE_API_URL}/${baseId}/${encodeURIComponent("Claims")}/${claimId}`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ fields: { Status: status } }),
+      cache: "no-store",
+    }
+  );
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Airtable Claims update failed (${res.status}): ${body}`);
+  }
+
+  return mapClaimRecord(
+    (await res.json()) as {
+      id: string;
+      createdTime: string;
+      fields: ClaimFields;
+    }
+  );
+}

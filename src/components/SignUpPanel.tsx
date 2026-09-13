@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Loader2, UserPlus, Users } from "lucide-react";
 import type { RecentSignUp } from "@/components/ActivityDetailClient";
 import { formatShortName } from "@/lib/category";
@@ -32,7 +32,11 @@ type LookupState =
   | { status: "loading" }
   | { status: "found"; person: MatchedPerson }
   | { status: "signing_up"; person: MatchedPerson }
-  | { status: "signed_up"; person: MatchedPerson }
+  | {
+      status: "signed_up";
+      person: MatchedPerson;
+      alreadyClaimed: boolean;
+    }
   | { status: "not_found" }
   | { status: "error"; message: string };
 
@@ -49,13 +53,16 @@ export function SignUpPanel({
   const [lookup, setLookup] = useState<LookupState>({ status: "idle" });
   const [slotsFilled, setSlotsFilled] = useState(initialSlotsFilled);
   const [recentSignUps, setRecentSignUps] = useState(initialRecentSignUps);
+  const signUpInFlight = useRef(false);
 
-  // Keep spots in sync when the server re-renders with a fresh Airtable rollup
+  // Keep spots in sync when the server re-renders with fresh Claim data.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync after router.refresh()
     setSlotsFilled(initialSlotsFilled);
   }, [initialSlotsFilled]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync after router.refresh()
     setRecentSignUps(initialRecentSignUps);
   }, [initialRecentSignUps]);
 
@@ -96,11 +103,12 @@ export function SignUpPanel({
   }
 
   async function confirmSignUp(person: MatchedPerson) {
+    if (signUpInFlight.current) return;
+    signUpInFlight.current = true;
     setLookup({ status: "signing_up", person });
 
     console.log("[SignUpPanel] confirming sign-up submit", {
       activityId,
-      personId: person.id,
       email: person.email,
     });
 
@@ -110,13 +118,13 @@ export function SignUpPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           activityId,
-          personId: person.id,
-          email: person.email,
+          email: person.email ?? email.trim(),
         }),
       });
 
       const data = (await res.json()) as {
         ok?: boolean;
+        alreadyClaimed?: boolean;
         error?: string;
         activity?: {
           id: string;
@@ -142,26 +150,36 @@ export function SignUpPanel({
       }
 
       if (typeof data.activity?.slotsFilled === "number") {
-        console.log(
-          "[SignUpPanel] updating slotsFilled from Airtable rollup",
-          data.activity.slotsFilled
-        );
         setSlotsFilled(data.activity.slotsFilled);
       }
 
       setRecentSignUps((prev) => {
-        if (prev.some((s) => s.id === person.id)) return prev;
-        return [
-          {
-            id: person.id,
-            name: formatShortName(person.firstName, person.lastName),
-            initials: person.initials,
-          },
-          ...prev,
-        ].slice(0, 8);
+        const current = {
+          id: person.id,
+          name: formatShortName(person.firstName, person.lastName),
+          initials: person.initials,
+        };
+        const byId = new Map(prev.map((signUp) => [signUp.id, signUp]));
+        byId.set(current.id, current);
+
+        if (Array.isArray(data.activity?.signUpIds)) {
+          return data.activity.signUpIds
+            .slice(0, 8)
+            .map((id) => byId.get(id))
+            .filter((signUp): signUp is RecentSignUp => !!signUp);
+        }
+
+        return [current, ...prev.filter((signUp) => signUp.id !== current.id)].slice(
+          0,
+          8
+        );
       });
 
-      setLookup({ status: "signed_up", person });
+      setLookup({
+        status: "signed_up",
+        person,
+        alreadyClaimed: data.alreadyClaimed === true,
+      });
       router.refresh();
     } catch (err) {
       console.error("[SignUpPanel] sign-up threw", err);
@@ -170,13 +188,15 @@ export function SignUpPanel({
         message:
           err instanceof Error ? err.message : "Something went wrong. Try again.",
       });
+    } finally {
+      signUpInFlight.current = false;
     }
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    // Phase 2: profile already found → write to Airtable Linked Sign Ups
+    // Phase 2: profile already found → create or reactivate its Claim.
     if (lookup.status === "found") {
       await confirmSignUp(lookup.person);
       return;
@@ -218,7 +238,9 @@ export function SignUpPanel({
 
   const buttonLabel =
     lookup.status === "signed_up"
-      ? "Signed Up"
+      ? lookup.alreadyClaimed
+        ? "Already Signed Up"
+        : "Signed Up"
       : lookup.status === "found"
         ? "Confirm Sign Up"
         : isFull

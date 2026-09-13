@@ -44,8 +44,8 @@ export default async function ActivityDetailPage({ params }: PageProps) {
   const categoryStyle = getCategoryStyle(activity.category);
   const CategoryIcon = categoryStyle.icon;
 
-  // Most recent sign-ups last in Airtable array — show newest first, cap at 8
-  const recentIds = [...activity.signUpIds].reverse().slice(0, 8);
+  // Claim-enriched signup IDs are already physical-newest-first, then legacy.
+  const recentIds = activity.signUpIds.slice(0, 8);
   const signUpPeople = await getPeopleByIds(recentIds);
   const recentSignUps = signUpPeople.map((person) => ({
     id: person.id,

@@ -25,7 +25,7 @@ function isCacheStale(): boolean {
 }
 
 /**
- * Fetch ALL Activities records from Airtable and rebuild the slug cache.
+ * Fetch Activities and Claims from Airtable and rebuild the enriched cache.
  * Returns the number of cached records.
  */
 export async function refreshActivitiesCache(): Promise<number> {
@@ -124,7 +124,7 @@ export async function getActivityBySlug(
   return activity;
 }
 
-/** Replace one activity in the in-memory cache after a successful mutation. */
+/** Replace one Claim-enriched activity after a successful mutation. */
 export function upsertActivityInCache(activity: Activity): void {
   const key = activity.slug.trim().toLowerCase();
   activitiesBySlug.set(key, activity);
@@ -136,4 +136,3 @@ export function upsertActivityInCache(activity: Activity): void {
     signUpIds: activity.signUpIds,
   });
 }
-
