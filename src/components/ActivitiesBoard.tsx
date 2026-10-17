@@ -7,6 +7,7 @@ import { CATEGORIES, CATEGORY_ICONS, type Category } from "@/lib/category";
 import type { Activity } from "@/lib/airtable";
 import { isBoardVisible, participationType } from "@/lib/activityBrowsing";
 import { typography } from "@/styles/typography";
+import { formatShortDeadline } from "@/lib/format";
 import { avatarColor } from "@/lib/avatar";
 
 /** Up to 5 recent volunteers per activity, keyed by activity id. */
@@ -55,7 +56,12 @@ function AvatarStack({ preview }: { preview?: SignUpPreview[string] }) {
 }
 
 function ActivityRow({ activity, preview }: { activity: Activity; preview?: SignUpPreview[string] }) {
-  const meta = [spotsLine(activity), activity.hours > 0 ? `${activity.hours} ${activity.hours === 1 ? "hour" : "hours"}` : null]
+const due = formatShortDeadline(activity.endDate);
+  const meta = [
+    spotsLine(activity),
+    activity.hours > 0 ? `${activity.hours} ${activity.hours === 1 ? "hour" : "hours"}` : null,
+    due ? `Due ${due}` : null,
+  ]
     .filter(Boolean)
     .join(" · ");
   return (

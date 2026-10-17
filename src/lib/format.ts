@@ -38,6 +38,19 @@ export function buildFilloutUrl(
   return url.toString();
 }
 
+/** Short deadline for list rows: "Dec 12", plus the year when it isn't this year. */
+export function formatShortDeadline(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+  if (!y || !m || !d) return null;
+  const date = new Date(y, m - 1, d);
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    ...(y !== new Date().getFullYear() ? { year: "numeric" } : {}),
+  });
+}
+
 export function formatDeadline(iso: string | null | undefined): string | null {
   if (!iso) return null;
   try {
