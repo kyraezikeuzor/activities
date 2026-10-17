@@ -1,4 +1,3 @@
-
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import NextTopLoader from "nextjs-toploader";
@@ -27,7 +26,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <NextTopLoader
-          color="#555555"
+          color="#1aa1ff"
           height={3}
           showSpinner={false}
           crawl

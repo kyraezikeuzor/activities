@@ -8,3 +8,9 @@ export function participationType(activity: Pick<Activity, "type" | "location">)
   if (location && !/^(tbd|tba|n\/a|to be announced|to be determined)$/.test(location)) return "In Person";
   return null;
 }
+
+/** Open, Full and Active activities appear on the board; Closed never does. */
+export function isBoardVisible(activity: Pick<Activity, "status">): boolean {
+  const status = activity.status?.trim().toLowerCase() ?? "";
+  return status === "open" || status === "full" || status === "active";
+}

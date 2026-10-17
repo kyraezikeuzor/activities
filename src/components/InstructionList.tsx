@@ -3,6 +3,15 @@ import type { InstructionBlock } from "@/lib/format";
 
 const URL_RE = /(https?:\/\/[^\s]+)/g;
 
+/** Long links read better as their site name, e.g. "docs.google.com". */
+function linkLabel(href: string): string {
+  try {
+    return new URL(href).hostname.replace(/^www\./, "");
+  } catch {
+    return href;
+  }
+}
+
 function linkify(text: string): ReactNode[] {
   const parts = text.split(URL_RE);
   return parts.map((part, i) => {
@@ -15,9 +24,9 @@ function linkify(text: string): ReactNode[] {
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            className="break-all font-medium text-foreground underline-offset-2 hover:underline"
+            className="font-medium text-bridge-action-hover underline underline-offset-2"
           >
-            {href}
+            {linkLabel(href)}
           </a>
           {trailing}
         </span>
@@ -25,41 +34,6 @@ function linkify(text: string): ReactNode[] {
     }
     return <span key={i}>{part}</span>;
   });
-}
-
-/** Bold the leading action words (first 2–3) for scannability. */
-function emphasizeLead(text: string): ReactNode {
-  const tokens = text.split(/(\s+)/);
-  let words = 0;
-  let splitAt = tokens.length;
-
-  for (let i = 0; i < tokens.length; i++) {
-    if (!tokens[i].trim()) continue;
-    words += 1;
-    // Bold first two words; if the 2nd is a short connector, include a 3rd
-    if (words === 2) {
-      const second = tokens[i].toLowerCase();
-      if (["up", "your", "the", "a", "an", "to", "for", "on"].includes(second)) {
-        continue;
-      }
-      splitAt = i + 1;
-      break;
-    }
-    if (words >= 3) {
-      splitAt = i + 1;
-      break;
-    }
-  }
-
-  const lead = tokens.slice(0, splitAt).join("");
-  const rest = tokens.slice(splitAt).join("");
-
-  return (
-    <>
-      <span className="font-medium text-foreground">{lead}</span>
-      {rest ? linkify(rest) : null}
-    </>
-  );
 }
 
 function StepBadge({ number }: { number: number }) {
@@ -96,7 +70,7 @@ export function InstructionList({ blocks, start = 1 }: { blocks: InstructionBloc
   );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {blocks.map((block, i) => {
         if (block.kind === "sample") {
           return <SampleBlock key={`sample-${i}`} text={block.text} />;
@@ -109,7 +83,7 @@ export function InstructionList({ blocks, start = 1 }: { blocks: InstructionBloc
           >
             <StepBadge number={stepNumbers[i] + start - 1} />
             <span className="min-w-0 leading-relaxed">
-              {emphasizeLead(block.text)}
+              {linkify(block.text)}
             </span>
           </div>
         );
