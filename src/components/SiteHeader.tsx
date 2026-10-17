@@ -31,8 +31,8 @@ export function SiteHeader() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={LOGO_URL} alt="Omelora" className="h-10 w-10 shrink-0 rounded-lg object-cover" />
           <div className="min-w-0">
-            <span className={`block ${typography.sectionTitle} ${textColor.primary}`}>Volunteer Activities Board</span>
-            <span className={`block ${typography.metadata} ${textColor.secondary}`}>Volunteer Opportunities</span>
+            <span className={`block ${typography.sectionTitle} ${textColor.primary}`}>Activities</span>
+            <span className={`block ${typography.metadata} ${textColor.secondary}`}>Volunteer Board</span>
           </div>
         </Link>
         <SignInToBridgeButton />
