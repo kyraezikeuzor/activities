@@ -15,7 +15,7 @@ function linkify(text: string): ReactNode[] {
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            className="break-all font-medium text-primary underline-offset-2 hover:underline"
+            className="break-all font-medium text-foreground underline-offset-2 hover:underline"
           >
             {href}
           </a>
@@ -56,7 +56,7 @@ function emphasizeLead(text: string): ReactNode {
 
   return (
     <>
-      <span className="font-semibold text-foreground/80">{lead}</span>
+      <span className="font-medium text-foreground">{lead}</span>
       {rest ? linkify(rest) : null}
     </>
   );
@@ -75,8 +75,8 @@ function StepBadge({ number }: { number: number }) {
 
 function SampleBlock({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl border border-primary/25 bg-primary/[0.06] px-4 py-3.5">
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-primary/80">
+    <div className="rounded-xl bg-muted px-4 py-3.5">
+      <p className="text-sm font-medium text-foreground">
         Copy this message
       </p>
       <p className="mt-2 text-[13px] leading-relaxed text-foreground">
@@ -86,7 +86,7 @@ function SampleBlock({ text }: { text: string }) {
   );
 }
 
-export function InstructionList({ blocks }: { blocks: InstructionBlock[] }) {
+export function InstructionList({ blocks, start = 1 }: { blocks: InstructionBlock[]; start?: number }) {
   if (blocks.length === 0) return null;
 
   const stepNumbers = blocks.map(
@@ -105,9 +105,9 @@ export function InstructionList({ blocks }: { blocks: InstructionBlock[] }) {
         return (
           <div
             key={`step-${i}`}
-            className="flex items-start gap-3 font-normal tracking-normal text-muted-foreground"
+            className="flex items-start gap-3 text-sm font-normal tracking-normal text-foreground"
           >
-            <StepBadge number={stepNumbers[i]} />
+            <StepBadge number={stepNumbers[i] + start - 1} />
             <span className="min-w-0 leading-relaxed">
               {emphasizeLead(block.text)}
             </span>

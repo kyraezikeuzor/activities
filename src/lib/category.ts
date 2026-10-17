@@ -1,5 +1,5 @@
 import {
-  GraduationCap,
+  BookOpen,
   Package,
   Tag,
   Users,
@@ -10,16 +10,14 @@ export const CATEGORIES = [
   "Education",
   "Fundraising",
   "Programs",
-  "Supplies",
 ] as const;
 
 export type Category = (typeof CATEGORIES)[number];
 
 export const CATEGORY_ICONS: Record<Category, LucideIcon> = {
-  Education: GraduationCap,
+  Education: BookOpen,
   Fundraising: Tag,
   Programs: Users,
-  Supplies: Package,
 };
 
 /** Solid colors for badges + card banner strips. */
@@ -30,7 +28,7 @@ export const CATEGORY_COLORS: Record<
   education: {
     badge: "bg-sky-500 text-white",
     banner: "bg-sky-500",
-    icon: GraduationCap,
+    icon: BookOpen,
   },
   fundraising: {
     badge: "bg-green-500 text-white",
@@ -52,7 +50,7 @@ export const CATEGORY_COLORS: Record<
 const FALLBACK = {
   badge: "bg-sky-500 text-white",
   banner: "bg-sky-500",
-  icon: GraduationCap as LucideIcon,
+  icon: BookOpen as LucideIcon,
 };
 
 export function getCategoryStyle(category: string | null | undefined) {

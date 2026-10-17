@@ -1,6 +1,6 @@
 import { fetchAllActivities, type Activity } from "@/lib/airtable";
 
-const CACHE_TTL_MS = 5 * 60 * 1000;
+const CACHE_TTL_MS = 300_000;
 
 /** In-memory Activities cache keyed by lowercased slug (`title-slug-recXXXX`). */
 const activitiesBySlug = new Map<string, Activity>();
@@ -126,9 +126,17 @@ export async function getActivityBySlug(
 
 /** Replace one Claim-enriched activity after a successful mutation. */
 export function upsertActivityInCache(activity: Activity): void {
+  const existing = activitiesById.get(activity.id);
+  const activityWithNames = {
+    ...activity,
+    projectName: activity.projectName ?? existing?.projectName ?? null,
+    projectThumbnailUrl:
+      activity.projectThumbnailUrl ?? existing?.projectThumbnailUrl ?? null,
+    centerName: activity.centerName ?? existing?.centerName ?? null,
+  };
   const key = activity.slug.trim().toLowerCase();
-  activitiesBySlug.set(key, activity);
-  activitiesById.set(activity.id, activity);
+  activitiesBySlug.set(key, activityWithNames);
+  activitiesById.set(activity.id, activityWithNames);
   console.log("[activitiesCache] upserted activity in cache", {
     id: activity.id,
     slug: key,

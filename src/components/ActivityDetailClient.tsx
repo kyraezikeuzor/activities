@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import { Mail } from "lucide-react";
 import { SignUpPanel } from "@/components/SignUpPanel";
 import { NextSteps } from "@/components/NextSteps";
-import { VOLUNTEER_EMAIL } from "@/lib/format";
+import { VOLUNTEER_EMAIL, type InstructionBlock } from "@/lib/format";
 
 export type RecentSignUp = {
   id: string;
@@ -21,6 +21,8 @@ type ActivityDetailClientProps = {
   isFull: boolean;
   recentSignUps: RecentSignUp[];
   leftColumn: ReactNode;
+  instructionBlocks: InstructionBlock[];
+  projectId?: string;
 };
 
 /**
@@ -35,18 +37,22 @@ export function ActivityDetailClient({
   isFull,
   recentSignUps,
   leftColumn,
+  instructionBlocks,
+  projectId,
 }: ActivityDetailClientProps) {
   const [email, setEmail] = useState<string | null>(null);
 
   return (
-    <div className="grid grid-cols-1 gap-0 lg:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)] lg:gap-2">
-      <div className="space-y-6 p-6 sm:p-8 lg:pr-10">
+    <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)] lg:gap-16">
+      <div className="space-y-8">
         {leftColumn}
         <NextSteps
           activityId={activityId}
           type={type}
           submissionFormat={submissionFormat}
           email={email}
+          instructionBlocks={instructionBlocks}
+          projectId={projectId}
         />
         <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           <Mail className="h-4 w-4 shrink-0" aria-hidden />
@@ -54,7 +60,7 @@ export function ActivityDetailClient({
             Questions? Email{" "}
             <a
               href={`mailto:${VOLUNTEER_EMAIL}`}
-              className="font-medium text-primary underline underline-offset-2 hover:text-sunrise-600"
+              className="font-medium text-foreground underline underline-offset-2 hover:text-sunrise-600"
             >
               {VOLUNTEER_EMAIL}
             </a>
@@ -62,7 +68,7 @@ export function ActivityDetailClient({
         </p>
       </div>
 
-      <div className="border-t border-border p-6 sm:p-8 lg:border-t-0 lg:border-l lg:border-border/60 lg:pl-10">
+      <div className="rounded-xl border border-border p-6 lg:sticky lg:top-6">
         <SignUpPanel
           activityId={activityId}
           slotsFilled={slotsFilled}

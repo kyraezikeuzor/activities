@@ -10,7 +10,7 @@
     "test": "node --test src/lib/claims.test.mjs"
   },
   "dependencies": {
-    "@omelora/sunrise": "^0.1.0",
+    "@omelora/sunrise": "file:vendor/omelora-sunrise-0.1.0.tgz",
     "lucide-react": "^1.27.0",
     "next": "16.2.12",
     "nextjs-toploader": "^3.9.17",

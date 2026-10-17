@@ -1,9 +1,12 @@
+
 import type { Config } from "tailwindcss";
 import { sunrisePreset } from "@omelora/sunrise/tailwind-preset";
 
 const config: Config = {
   // Sunrise ships readonly token tuples; cast for Tailwind's mutable Config type
-  presets: [sunrisePreset as unknown as NonNullable<Config["presets"]>[number]],
+  presets: [
+    sunrisePreset as unknown as NonNullable<Config["presets"]>[number],
+  ],
   content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
@@ -13,7 +16,11 @@ const config: Config = {
     "./node_modules/@omelora/sunrise/src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        sans: ["var(--font-inter)", "Arial", "sans-serif"],
+      },
+    },
   },
   plugins: [],
 };

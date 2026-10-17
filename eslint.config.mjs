@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // A separate, self-contained Next.js app with its own lint configuration.
+    "mental-health-podcast/**",
   ]),
 ]);
 

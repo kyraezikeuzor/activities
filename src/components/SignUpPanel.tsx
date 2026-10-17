@@ -1,11 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { Button, Input } from "@omelora/sunrise";
 import { useEffect, useRef, useState } from "react";
 import { Check, Loader2, UserPlus, Users } from "lucide-react";
 import type { RecentSignUp } from "@/components/ActivityDetailClient";
 import { formatShortName } from "@/lib/category";
-import { avatarToneClass } from "@/lib/format";
 
 const APPLY_URL = "https://form.fillout.com/t/2VfsyEfiduus";
 
@@ -239,13 +239,13 @@ export function SignUpPanel({
   const buttonLabel =
     lookup.status === "signed_up"
       ? lookup.alreadyClaimed
-        ? "Already Signed Up"
-        : "Signed Up"
+        ? "Already signed up"
+        : "Signed up"
       : lookup.status === "found"
-        ? "Confirm Sign Up"
+        ? "Confirm sign up"
         : isFull
           ? "Full"
-          : "Sign Up";
+          : "Sign up";
 
   return (
     <aside className="flex flex-col gap-5">
@@ -266,7 +266,7 @@ export function SignUpPanel({
       <div className="space-y-4">
         <div className="space-y-1.5">
           <h3 className="text-base font-semibold tracking-normal text-foreground/75">
-            Volunteer Sign Up
+            Volunteer sign up
           </h3>
           <p className="font-normal tracking-normal text-muted-foreground">
             Enter your email and sign up.
@@ -274,7 +274,10 @@ export function SignUpPanel({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
-          <input
+          <Input
+            label="Email address"
+            error={lookup.status === "error"}
+            aria-describedby={lookup.status === "error" ? "signup-error" : undefined}
             id="volunteer-email"
             name="email"
             type="email"
@@ -296,7 +299,7 @@ export function SignUpPanel({
             autoComplete="email"
             required
             aria-label="Volunteer email"
-            className={`flex h-10 w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${inputHighlight}`}
+            className={inputHighlight}
           />
 
           {lookup.status === "loading" ? (
@@ -316,9 +319,9 @@ export function SignUpPanel({
           {lookup.status === "found" ||
           lookup.status === "signing_up" ||
           lookup.status === "signed_up" ? (
-            <div className="flex items-center gap-3 rounded-xl border border-border bg-white p-3 shadow-sm">
+            <div className="flex items-center gap-3 rounded-xl border border-border bg-white p-3">
               <div
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white ${avatarToneClass(lookup.person.id)}`}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground"
               >
                 {lookup.person.initials}
               </div>
@@ -334,7 +337,7 @@ export function SignUpPanel({
           ) : null}
 
           {lookup.status === "not_found" ? (
-            <div className="rounded-xl border border-border bg-white p-3.5 shadow-sm">
+            <div className="rounded-xl border border-border bg-white p-3.5">
               <p className="text-sm font-medium text-foreground">
                 We couldn&apos;t find a volunteer profile for this email.
               </p>
@@ -344,7 +347,7 @@ export function SignUpPanel({
                   href={APPLY_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="font-medium text-primary underline underline-offset-2 hover:text-sunrise-600"
+                  className="font-medium text-foreground underline underline-offset-2 hover:text-sunrise-600"
                 >
                   Apply here
                 </a>
@@ -353,10 +356,10 @@ export function SignUpPanel({
           ) : null}
 
           {lookup.status === "error" ? (
-            <p className="text-xs text-destructive">{lookup.message}</p>
+            <p role="alert" id="signup-error" className="text-sm text-destructive">{lookup.message}</p>
           ) : null}
 
-          <button
+          <Button
             type="submit"
             disabled={
               isFull ||
@@ -364,7 +367,7 @@ export function SignUpPanel({
               lookup.status === "signed_up" ||
               lookup.status === "not_found"
             }
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-primary px-4 text-sm font-bold tracking-normal text-primary-foreground shadow-sm transition-colors hover:bg-sunrise-600 disabled:pointer-events-none disabled:opacity-50"
+            className="h-11 w-full rounded-full"
           >
             {busy ? (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
@@ -374,13 +377,13 @@ export function SignUpPanel({
               <UserPlus className="h-4 w-4" aria-hidden />
             )}
             {buttonLabel}
-          </button>
+          </Button>
         </form>
       </div>
 
       <div className="border-t border-border pt-5">
         <h3 className="text-base font-medium tracking-normal text-foreground/75">
-          Recent Sign Ups
+          Recent sign ups
         </h3>
         {recentSignUps.length === 0 ? (
           <p className="mt-3 text-sm text-muted-foreground">
@@ -391,7 +394,7 @@ export function SignUpPanel({
             {recentSignUps.map((signUp) => (
               <li key={signUp.id} className="flex items-center gap-2.5">
                 <span
-                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${avatarToneClass(signUp.id)}`}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-foreground"
                 >
                   {signUp.initials}
                 </span>
