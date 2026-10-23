@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import {
   fetchAllPeople,
   fetchPeopleByIds,
@@ -95,6 +96,15 @@ export async function getPersonByEmail(
  * requested records (not the full People table).
  * Preserves input order; skips missing IDs.
  */
+/**
+ * Shared cache for avatar lookups, keyed by the sorted id list. A new server
+ * reuses what another one fetched instead of asking Airtable again.
+ */
+const loadPeopleByIds = unstable_cache((ids: string[]) => fetchPeopleByIds(ids), ["people-by-ids-v2"], {
+  revalidate: 3600,
+  tags: ["people"],
+});
+
 export async function getPeopleByIds(ids: string[]): Promise<Person[]> {
   if (ids.length === 0) return [];
 
@@ -112,7 +122,7 @@ export async function getPeopleByIds(ids: string[]): Promise<Person[]> {
       `[peopleCache] getPeopleByIds fetching ${missing.length} missing id(s) (not full table)`
     );
     const started = Date.now();
-    const fetched = await fetchPeopleByIds(missing);
+    const fetched = await loadPeopleByIds([...new Set(missing)].sort());
     for (const person of fetched) {
       rememberPerson(person);
     }

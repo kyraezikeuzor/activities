@@ -105,6 +105,24 @@ export interface ActivityFields {
 }
 
 /**
+ * Activity fields the app reads. Everything else on the Airtable record
+ * (for example "Rollup Emails", which lists volunteers' emails) is dropped,
+ * because activities are sent to the browser.
+ */
+const PUBLIC_ACTIVITY_FIELDS = [
+  "Activity Name", "Linked Projects", "Rollup Partner", "Track", "Category", "Type", "Description",
+  "Location", "Slots Max", "Slots Total", "Slots Filled", "Status", "Fillout Link", "Start Date",
+  "End Date", "Hours Value", "Slug", "Languages", "Instructions", "Activity ID", "Linked Sign Ups",
+  "Submission Format",
+] as const satisfies readonly (keyof ActivityFields)[];
+
+function pickActivityFields(fields: ActivityFields): ActivityFields {
+  const picked: Record<string, unknown> = {};
+  for (const key of PUBLIC_ACTIVITY_FIELDS) if (fields[key] !== undefined) picked[key] = fields[key];
+  return picked as ActivityFields;
+}
+
+/**
  * Normalized activity shape returned to the app.
  * Maps live Airtable fields → Title, Category, Claim Form URL, Hours, Slug, etc.
  */
@@ -298,7 +316,7 @@ export function mapActivityRecord(
   return {
     id: record.id,
     createdTime: record.createdTime,
-    fields: record.fields,
+    fields: pickActivityFields(record.fields),
     title,
     projectName,
     projectThumbnailUrl,
@@ -765,10 +783,19 @@ export async function fetchPeopleByIds(ids: string[]): Promise<Person[]> {
   const unique = [...new Set(ids.filter(Boolean))];
   if (unique.length === 0) return [];
 
-  const results = await Promise.all(unique.map((id) => fetchPersonById(id)));
-  const byId = new Map(
-    results.filter((p): p is Person => p !== null).map((p) => [p.id, p])
+  // A few list requests instead of one request per person: Airtable allows
+  // about 5 requests per second, so per-person fetches queued up on cold loads.
+  const valid = unique.filter((id) => /^rec[a-zA-Z0-9]+$/.test(id));
+  const chunks: string[][] = [];
+  for (let i = 0; i < valid.length; i += 50) chunks.push(valid.slice(i, i + 50));
+  const pages = await Promise.all(
+    chunks.map((chunk) =>
+      listAllRecords<PersonFields>("People", {
+        filterByFormula: `OR(${chunk.map((id) => `RECORD_ID()='${id}'`).join(",")})`,
+      })
+    )
   );
+  const byId = new Map(pages.flat().map((record) => [record.id, mapPersonRecord(record)]));
 
   // Preserve caller order; skip ids that 404'd
   return ids

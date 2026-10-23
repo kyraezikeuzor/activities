@@ -1,146 +1,83 @@
+import { revalidateTag, unstable_cache } from "next/cache";
 import { fetchAllActivities, type Activity } from "@/lib/airtable";
 
-const CACHE_TTL_MS = 300_000;
+/**
+ * Activities live in Next's shared Data Cache, not in one server's memory.
+ * Every Vercel instance reads the same copy, so a fresh instance doesn't
+ * start empty. After 5 minutes the copy is served stale while it refreshes
+ * in the background, so no visitor waits on Airtable for a routine refresh.
+ */
+export const ACTIVITIES_TAG = "activities";
+const REVALIDATE_SECONDS = 300;
 
-/** In-memory Activities cache keyed by lowercased slug (`title-slug-recXXXX`). */
-const activitiesBySlug = new Map<string, Activity>();
-/** Secondary index by Airtable record id for lookups from URL suffix. */
-const activitiesById = new Map<string, Activity>();
-
-let lastRefreshedAt: number | null = null;
-let refreshInFlight: Promise<number> | null = null;
-
-export function getActivitiesCacheStats() {
-  return {
-    size: activitiesBySlug.size,
-    lastRefreshedAt,
-    ageMs: lastRefreshedAt === null ? null : Date.now() - lastRefreshedAt,
-    isStale: isCacheStale(),
-  };
-}
-
-function isCacheStale(): boolean {
-  if (lastRefreshedAt === null || activitiesBySlug.size === 0) return true;
-  return Date.now() - lastRefreshedAt > CACHE_TTL_MS;
-}
+const loadActivities = unstable_cache(fetchAllActivities, ["activities-v2"], {
+  revalidate: REVALIDATE_SECONDS,
+  tags: [ACTIVITIES_TAG],
+});
 
 /**
- * Fetch Activities and Claims from Airtable and rebuild the enriched cache.
- * Returns the number of cached records.
+ * Sign-ups made on this instance, shown right away while the shared copy
+ * refreshes in the background. An entry is dropped once the shared copy
+ * catches up or after a few minutes.
  */
-export async function refreshActivitiesCache(): Promise<number> {
-  // Coalesce concurrent refreshes into one Airtable pull
-  if (refreshInFlight) {
-    console.log("[activitiesCache] refresh already in flight — awaiting it");
-    return refreshInFlight;
-  }
+const OVERRIDE_TTL_MS = 5 * 60 * 1000;
+const overrides = new Map<string, { activity: Activity; at: number }>();
 
-  refreshInFlight = (async () => {
-    console.log("[activitiesCache] refreshing Activities cache from Airtable…");
-    const started = Date.now();
-    const activities = await fetchAllActivities();
-
-    activitiesBySlug.clear();
-    activitiesById.clear();
-    for (const activity of activities) {
-      const key = activity.slug.trim().toLowerCase();
-      if (!key) continue;
-      activitiesBySlug.set(key, activity);
-      activitiesById.set(activity.id, activity);
+function applyOverrides(activities: Activity[]): Activity[] {
+  if (overrides.size === 0) return activities;
+  const now = Date.now();
+  return activities.map((activity) => {
+    const override = overrides.get(activity.id);
+    if (!override) return activity;
+    const caughtUp = activity.slotsFilled === override.activity.slotsFilled && activity.signUpIds.join() === override.activity.signUpIds.join();
+    if (caughtUp || now - override.at > OVERRIDE_TTL_MS) {
+      overrides.delete(activity.id);
+      return activity;
     }
-
-    lastRefreshedAt = Date.now();
-    const elapsed = lastRefreshedAt - started;
-    console.log(
-      `[activitiesCache] refresh complete — cached ${activitiesBySlug.size} activities (${elapsed}ms)`
-    );
-    return activitiesBySlug.size;
-  })();
-
-  try {
-    return await refreshInFlight;
-  } finally {
-    refreshInFlight = null;
-  }
+    // A sign-up record has no project names attached; keep the cached ones.
+    return {
+      ...override.activity,
+      projectName: override.activity.projectName ?? activity.projectName,
+      projectThumbnailUrl: override.activity.projectThumbnailUrl ?? activity.projectThumbnailUrl,
+      centerName: override.activity.centerName ?? activity.centerName,
+    };
+  });
 }
 
-/**
- * Return all Activities via the in-memory cache.
- * Refreshes from Airtable when the cache is empty or older than 5 minutes.
- */
+/** Return all Activities from the shared cache. */
 export async function getActivities(): Promise<Activity[]> {
-  if (isCacheStale()) {
-    console.log(
-      "[activitiesCache] cache miss/stale for getActivities — refreshing before lookup"
-    );
-    await refreshActivitiesCache();
-  } else {
-    console.log(
-      "[activitiesCache] cache hit path for getActivities (no refresh needed)"
-    );
-  }
-
-  return Array.from(activitiesBySlug.values());
+  return applyOverrides(await loadActivities());
 }
 
 /**
  * Look up an activity by public slug (`title-slug-recXXXX`).
  * Also resolves by trailing Airtable record id when the title portion drifts.
- * Refreshes from Airtable when the cache is empty or older than 5 minutes.
  */
-export async function getActivityBySlug(
-  slug: string
-): Promise<Activity | null> {
+export async function getActivityBySlug(slug: string): Promise<Activity | null> {
   const key = slug.trim().toLowerCase();
   if (!key) return null;
-
-  const stats = getActivitiesCacheStats();
-  if (isCacheStale()) {
-    console.log(
-      `[activitiesCache] MISS/stale for slug "${key}" — refreshing (ageMs=${stats.ageMs}, size=${stats.size})`
-    );
-    await refreshActivitiesCache();
-  } else {
-    console.log(
-      `[activitiesCache] HIT for slug lookup path "${key}" (ageMs=${stats.ageMs}, size=${stats.size})`
-    );
-  }
-
-  let activity = activitiesBySlug.get(key) ?? null;
-
-  // Fallback: match trailing Airtable record id (rec…)
-  if (!activity) {
-    const idMatch = key.match(/(rec[a-z0-9]+)$/i);
-    if (idMatch) {
-      activity = activitiesById.get(idMatch[1]) ?? null;
-    }
-  }
-
-  if (activity) {
-    console.log(`[activitiesCache] resolved slug "${key}" → ${activity.id}`);
-  } else {
-    console.log(`[activitiesCache] slug "${key}" not found after lookup`);
-  }
-  return activity;
+  const activities = await getActivities();
+  const bySlug = activities.find((activity) => activity.slug.trim().toLowerCase() === key);
+  if (bySlug) return bySlug;
+  const id = key.match(/(rec[a-z0-9]+)$/i)?.[1];
+  return id ? activities.find((activity) => activity.id.toLowerCase() === id.toLowerCase()) ?? null : null;
 }
 
-/** Replace one Claim-enriched activity after a successful mutation. */
+/**
+ * After a sign-up: show the new count on this instance now, and mark the
+ * shared copy stale so every instance picks it up on the next refresh.
+ */
 export function upsertActivityInCache(activity: Activity): void {
-  const existing = activitiesById.get(activity.id);
-  const activityWithNames = {
-    ...activity,
-    projectName: activity.projectName ?? existing?.projectName ?? null,
-    projectThumbnailUrl:
-      activity.projectThumbnailUrl ?? existing?.projectThumbnailUrl ?? null,
-    centerName: activity.centerName ?? existing?.centerName ?? null,
-  };
-  const key = activity.slug.trim().toLowerCase();
-  activitiesBySlug.set(key, activityWithNames);
-  activitiesById.set(activity.id, activityWithNames);
-  console.log("[activitiesCache] upserted activity in cache", {
-    id: activity.id,
-    slug: key,
-    slotsFilled: activity.slotsFilled,
-    signUpIds: activity.signUpIds,
-  });
+  overrides.set(activity.id, { at: Date.now(), activity });
+  revalidateTag(ACTIVITIES_TAG, "max");
+}
+
+/** Mark the shared copy stale. The next request triggers a background refresh. */
+export async function refreshActivitiesCache(): Promise<number> {
+  revalidateTag(ACTIVITIES_TAG, "max");
+  return (await loadActivities()).length;
+}
+
+export function getActivitiesCacheStats() {
+  return { pendingOverrides: overrides.size, revalidateSeconds: REVALIDATE_SECONDS };
 }

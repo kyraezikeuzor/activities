@@ -7,7 +7,7 @@ import {
 export const dynamic = "force-dynamic";
 
 /**
- * Force-refresh the in-memory Activities cache from Airtable.
+ * Mark the shared Activities cache stale so it refreshes from Airtable.
  * POST /api/refresh-activities-cache
  */
 export async function POST() {
